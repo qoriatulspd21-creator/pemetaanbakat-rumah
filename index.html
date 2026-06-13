@@ -1,0 +1,611 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>TalentScout Kids - Aplikasi Deteksi Bakat Anak</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+        
+        :root {
+            --primary: #6366f1;
+            --primary-dark: #4f46e5;
+            --accent: #f59e0b;
+            --bg-light: #f8fafc;
+        }
+
+        body {
+            font-family: 'Plus Jakarta Sans', sans-serif;
+            background-color: var(--bg-light);
+            color: #1e293b;
+            -webkit-tap-highlight-color: transparent;
+            overflow-x: hidden;
+        }
+
+        .glass-header {
+            background: rgba(255, 255, 255, 0.85);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        .check-card {
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+            border: 2px solid transparent;
+        }
+
+        .check-card:has(input:checked) {
+            border-color: var(--primary);
+            background-color: #ffffff;
+            box-shadow: 0 10px 25px -5px rgba(99, 102, 241, 0.12);
+        }
+
+        /* Hubungan CSS untuk Checked State */
+        .check-card input:checked + .custom-check {
+            background-color: var(--primary);
+            border-color: var(--primary);
+        }
+
+        .check-card input:checked + .custom-check i {
+            transform: scale(1) !important;
+            opacity: 1 !important;
+        }
+
+        .talent-card {
+            background: #ffffff;
+            border: 1px solid rgba(226, 232, 240, 0.6);
+            transition: transform 0.3s ease;
+        }
+
+        .nav-button {
+            transition: all 0.3s ease;
+        }
+
+        .nav-button.active {
+            color: var(--primary);
+            transform: translateY(-4px);
+        }
+
+        .nav-button.active .nav-icon-bg {
+            background-color: #eef2ff;
+            color: var(--primary);
+        }
+
+        .animate-pop-in {
+            animation: popIn 0.5s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+            opacity: 0;
+        }
+
+        @keyframes popIn {
+            from { opacity: 0; transform: scale(0.9) translateY(20px); }
+            to { opacity: 1; transform: scale(1) translateY(0); }
+        }
+
+        .welcome-screen {
+            background: radial-gradient(circle at top right, #eef2ff, #f8fafc);
+        }
+
+        .loading-overlay {
+            background: rgba(255, 255, 255, 0.9);
+            backdrop-filter: blur(4px);
+        }
+
+        /* Shake animation untuk error validation */
+        .shake {
+            animation: shakeKey 0.4s ease-in-out;
+        }
+        @keyframes shakeKey {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-6px); }
+            75% { transform: translateX(6px); }
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar { width: 0px; }
+    </style>
+</head>
+<body class="pb-36">
+
+    <!-- Notifikasi Toast Kustom -->
+    <div id="toastNotification" class="fixed top-24 left-1/2 -translate-x-1/2 z-[300] bg-slate-900 text-white text-xs font-semibold px-6 py-4 rounded-2xl shadow-2xl flex items-center gap-3 opacity-0 pointer-events-none transition-all duration-300 transform -translate-y-4">
+        <i id="toastIcon" class="fa-solid fa-circle-exclamation text-amber-400 text-base"></i>
+        <span id="toastMessage">Harap lengkapi formulir terlebih dahulu.</span>
+    </div>
+
+    <!-- Loading Spinner untuk Database -->
+    <div id="dbLoader" class="fixed inset-0 z-[200] flex items-center justify-center loading-overlay hidden">
+        <div class="text-center space-y-4">
+            <div class="w-12 h-12 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin mx-auto"></div>
+            <p class="text-sm font-bold text-slate-700">Menyimpan ke Database Guru...</p>
+        </div>
+    </div>
+
+    <!-- Welcome / Name & Class Input Section -->
+    <section id="welcome" class="fixed inset-0 z-[100] welcome-screen flex items-center justify-center p-6 transition-all duration-500">
+        <div id="welcomeContainer" class="max-w-md w-full space-y-6 text-center animate-pop-in">
+            <div class="w-20 h-20 bg-indigo-600 rounded-[2rem] flex items-center justify-center shadow-2xl shadow-indigo-200 mx-auto mb-2 rotate-12">
+                <i class="fa-solid fa-face-smile-beam text-4xl text-white -rotate-12"></i>
+            </div>
+            <div class="space-y-2">
+                <h1 class="text-3xl font-extrabold text-slate-900 tracking-tight">Halo, Bunda!</h1>
+                <p class="text-slate-500 text-sm font-medium">Lengkapi data observasi ananda hari ini.</p>
+            </div>
+            
+            <div class="space-y-4 text-left">
+                <div class="relative group">
+                    <input type="text" id="childNameInput" placeholder="Nama Lengkap Anak" 
+                        class="w-full bg-white border-2 border-slate-100 rounded-[1.5rem] px-6 py-4 text-base font-bold text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50/50 outline-none transition-all shadow-sm">
+                    <i class="fa-solid fa-user absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors"></i>
+                </div>
+
+                <div class="relative group">
+                    <select id="childClassInput" 
+                        class="w-full bg-white border-2 border-slate-100 rounded-[1.5rem] px-6 py-4 text-base font-bold text-slate-800 focus:border-indigo-500 focus:ring-4 focus:ring-indigo-50/50 outline-none transition-all shadow-sm appearance-none">
+                        <option value="" disabled selected>Pilih Kelas</option>
+                        <optgroup label="Kelas 2">
+                            <option value="2A">2A</option>
+                            <option value="2B">2B</option>
+                            <option value="2C">2C</option>
+                        </optgroup>
+                        <optgroup label="Kelas 3">
+                            <option value="3A">3A</option>
+                            <option value="3B">3B</option>
+                            <option value="3C">3C</option>
+                        </optgroup>
+                        <optgroup label="Kelas 4">
+                            <option value="4A">4A</option>
+                            <option value="4B">4B</option>
+                            <option value="4C">4C</option>
+                        </optgroup>
+                        <optgroup label="Kelas 5">
+                            <option value="5A">5A</option>
+                            <option value="5B">5B</option>
+                            <option value="5C">5C</option>
+                        </optgroup>
+                        <optgroup label="Kelas 6">
+                            <option value="6A">6A</option>
+                            <option value="6B">6B</option>
+                            <option value="6C">6C</option>
+                        </optgroup>
+                    </select>
+                    <i class="fa-solid fa-school absolute right-6 top-1/2 -translate-y-1/2 text-slate-300 group-focus-within:text-indigo-500 transition-colors"></i>
+                </div>
+            </div>
+
+            <button onclick="startApp()" class="w-full bg-slate-900 text-white py-5 rounded-[2rem] font-extrabold text-lg shadow-2xl shadow-slate-200 hover:bg-indigo-600 transition-all active:scale-95">
+                Mulai Observasi <i class="fa-solid fa-arrow-right ml-2 text-sm"></i>
+            </button>
+        </div>
+    </section>
+
+    <!-- Header Area -->
+    <header id="mainHeader" class="glass-header fixed top-0 left-0 right-0 z-50 border-b border-slate-100/50 hidden">
+        <div class="max-w-md mx-auto px-6 py-5 flex justify-between items-center">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-indigo-600 rounded-2xl flex items-center justify-center shadow-lg shadow-indigo-200">
+                    <i class="fa-solid fa-star text-white"></i>
+                </div>
+                <div>
+                    <h1 class="text-sm font-extrabold text-slate-900 leading-tight tracking-tight">Ananda <span id="displayChildName" class="text-indigo-600">...</span></h1>
+                    <p class="text-[10px] text-slate-400 font-bold uppercase" id="displayChildClass">Kelas ...</p>
+                </div>
+            </div>
+            <button onclick="saveAndShowReport()" class="bg-indigo-600 text-white text-[10px] px-5 py-2.5 rounded-full font-bold active:scale-90 transition-transform shadow-xl shadow-indigo-200">
+                KIRIM & HASIL
+            </button>
+        </div>
+    </header>
+
+    <main id="mainContent" class="max-w-md mx-auto px-6 pt-24 hidden">
+        
+        <!-- Checklist View -->
+        <section id="checklist" class="space-y-8">
+            <div class="bg-indigo-600 rounded-[2.5rem] p-8 text-white shadow-2xl shadow-indigo-200 relative overflow-hidden">
+                <div class="relative z-10">
+                    <h2 class="text-xl font-bold leading-tight">Momen <span class="text-indigo-200" id="headerChildName">...</span><br>Hari Ini?</h2>
+                    <p class="text-xs text-indigo-100 mt-2 font-medium opacity-90">Ceklis jika perilaku ini muncul hari ini secara alami.</p>
+                </div>
+                <i class="fa-solid fa-sparkles absolute right-6 bottom-6 text-5xl text-white/10"></i>
+            </div>
+
+            <div id="checklist-groups" class="space-y-10 pb-10">
+                <!-- Content via JS -->
+            </div>
+        </section>
+
+        <!-- Report View -->
+        <section id="report" class="hidden space-y-8 animate-pop-in">
+            <div class="bg-white p-8 rounded-[3rem] shadow-sm border border-slate-100/80">
+                <div class="text-center mb-8">
+                    <span class="bg-green-50 text-green-600 text-[10px] font-black px-4 py-1.5 rounded-full uppercase tracking-widest">Analisis Bakat Selesai</span>
+                    <h3 class="font-extrabold text-slate-800 text-xl mt-3">Peta Bakat <span id="reportChildName">...</span></h3>
+                    <p class="text-xs text-slate-400 font-bold" id="reportChildClass">Kelas ...</p>
+                </div>
+                <div class="relative h-64 w-full flex items-center justify-center">
+                    <canvas id="talentChart"></canvas>
+                </div>
+            </div>
+
+            <div class="grid grid-cols-2 gap-3">
+                <button onclick="shareResultToWhatsApp()" class="bg-emerald-600 text-white p-4 rounded-3xl font-bold text-xs shadow-lg shadow-emerald-100 flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                    <i class="fa-brands fa-whatsapp text-lg"></i> Bagikan Hasil ke Guru
+                </button>
+                <button onclick="window.print()" class="bg-slate-100 text-slate-700 p-4 rounded-3xl font-bold text-xs flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                    <i class="fa-solid fa-print"></i> Cetak PDF Laporan
+                </button>
+            </div>
+
+            <div id="top-talents-display" class="space-y-5">
+                <!-- Detailed Cards via JS -->
+            </div>
+
+            <button onclick="resetAndBackToHome()" class="w-full bg-slate-200 text-slate-700 py-4 rounded-3xl font-bold text-sm mb-10 hover:bg-slate-300 transition-colors">
+                <i class="fa-solid fa-rotate-left mr-2"></i> Mulai Observasi Baru
+            </button>
+        </section>
+
+    </main>
+
+    <!-- Bottom Navbar -->
+    <nav id="bottomNav" class="fixed bottom-8 left-1/2 -translate-x-1/2 w-[85%] max-w-md bg-white/80 backdrop-blur-2xl border border-white/50 rounded-[2.5rem] p-2.5 shadow-[0_20px_50px_rgba(0,0,0,0.1)] z-50 hidden">
+        <div class="flex justify-between items-center">
+            <button onclick="showSection('checklist')" id="nav-checklist" class="nav-button flex-1 flex flex-col items-center gap-1 active">
+                <div class="nav-icon-bg w-14 py-2 rounded-2xl flex items-center justify-center transition-colors">
+                    <i class="fa-solid fa-house-chimney-window text-lg"></i>
+                </div>
+                <span class="text-[9px] font-black uppercase tracking-widest">Harian</span>
+            </button>
+            <button onclick="showSection('report')" id="nav-report" class="nav-button flex-1 flex flex-col items-center gap-1 text-slate-300">
+                <div class="nav-icon-bg w-14 py-2 rounded-2xl flex items-center justify-center transition-colors">
+                    <i class="fa-solid fa-chart-pie text-lg"></i>
+                </div>
+                <span class="text-[9px] font-black uppercase tracking-widest">Analisis</span>
+            </button>
+        </div>
+    </nav>
+
+    <script>
+        // PASTIKAN URL BERIKUT ADALAH URL DEPLOYMENT TERBARU DARI GOOGLE APPS SCRIPT JIKA INGIN DATA MASUK KE SPREADSHEET GURU
+        const GOOGLE_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbx5keeEGK7VzpQ_fj3_X28uCKGWqwZRF6ck-g3VVHdiYEXyVf8O4WyYc6yj30ULvbA/exec";
+        
+        let childName = "";
+        let childClass = "";
+        let checkedActivities = [];
+
+        const talents = {
+            'Ideation': { score: 10, domain: 'Strategic', icon: 'fa-lightbulb', color: '#6366f1', desc: 'Penghasil ide kreatif.', advice: 'Sediakan media eksplorasi tanpa batas seperti kertas lebar atau balok susun.' },
+            'Analytical': { score: 10, domain: 'Strategic', icon: 'fa-microscope', color: '#818cf8', desc: 'Pemikir logis.', advice: 'Berikan tantangan klasifikasi, puzzle logika, atau eksperimen sederhana.' },
+            'Strategic': { score: 10, domain: 'Strategic', icon: 'fa-map-signs', color: '#4f46e5', desc: 'Ahli strategi.', advice: 'Libatkan dalam perencanaan rute jalan-jalan atau menyusun rencana harian.' },
+            'Learner': { score: 10, domain: 'Strategic', icon: 'fa-book-open', color: '#3730a3', desc: 'Pencinta ilmu.', advice: 'Sediakan buku-buku ensiklopedia atau ajak mengunjungi museum sains.' },
+            'Achiever': { score: 10, domain: 'Executing', icon: 'fa-fire-alt', color: '#f43f5e', desc: 'Pekerja keras.', advice: 'Berikan daftar tugas (to-do list) kecil dan beri apresiasi saat selesai.' },
+            'Arranger': { score: 10, domain: 'Executing', icon: 'fa-layer-group', color: '#e11d48', desc: 'Pengatur efisien.', advice: 'Minta bantuan merapikan isi lemari pakaian atau menyusun peralatan dapur.' },
+            'Discipline': { score: 10, domain: 'Executing', icon: 'fa-calendar-check', color: '#be123c', desc: 'Terstruktur.', advice: 'Buatlah jadwal harian yang tetap dan konsisten agar ia merasa tenang.' },
+            'Responsibility': { score: 10, domain: 'Executing', icon: 'fa-shield-heart', color: '#9f1239', desc: 'Bertanggung jawab.', advice: 'Berikan tugas harian mandiri seperti merawat tanaman atau hewan.' },
+            'Activator': { score: 10, domain: 'Influencing', icon: 'fa-bolt-lightning', color: '#f59e0b', desc: 'Sang penggerak.', advice: 'Biarkan ia mencoba hal baru secara langsung dan belajar dari tindakan nyata.' },
+            'Communication': { score: 10, domain: 'Influencing', icon: 'fa-comment-dots', color: '#fbbf24', desc: 'Komunikator ulung.', advice: 'Sering-sering ajak berdiskusi dan dengarkan ia bercerita dengan antusias.' },
+            'Competition': { score: 10, domain: 'Influencing', icon: 'fa-trophy', color: '#d97706', desc: 'Berorientasi prestasi.', advice: 'Beri tantangan kompetitif yang sehat dan ajarkan fokus pada perkembangan diri.' },
+            'Woo': { score: 10, domain: 'Influencing', icon: 'fa-handshake-simple', color: '#b45309', desc: 'Magnet sosial.', advice: 'Beri kesempatan berinteraksi di tempat umum atau lingkungan baru.' },
+            'Empathy': { score: 10, domain: 'Relationship', icon: 'fa-heart', color: '#10b981', desc: 'Penuh empati.', advice: 'Latih validasi perasaan.' },
+            'Positivity': { score: 10, domain: 'Relationship', icon: 'fa-sun', color: '#34d399', desc: 'Optimis sejati.', advice: 'Dukung keceriaannya agar ia menjadi pembawa energi positif di keluarga.' },
+            'Relator': { score: 10, domain: 'Relationship', icon: 'fa-users-between-lines', color: '#059669', desc: 'Sahabat setia.', advice: 'Sediakan waktu Deep Talk khusus berdua saja tanpa gangguan gawai.' },
+            'Restorative': { score: 10, domain: 'Executing', icon: 'fa-screwdriver-wrench', color: '#ef4444', desc: 'Problem solver.', advice: 'Sediakan barang-barang bekas aman untuk ia pelajari struktur rusaknya.' },
+            'Command': { score: 10, domain: 'Influencing', icon: 'fa-bullhorn', color: '#d97706', desc: 'Pemimpin tegas.', advice: 'Latih dia memimpin kelompok kecil dengan kelembutan suara.' }
+        };
+
+        // DAFTAR AKTIVITAS HARIAN YANG LEBIH GAMBANG DIAMATI ORANG TUA
+        const activityGroups = [
+            { name: "Aktivitas Bermain & Berkreasi", color: "indigo", activities: [
+                { label: "Suka menyusun mainan (lego/mobil-mobilan) secara berurutan atau dikelompokkan sesuai jenis/warna", cat: "Arranger" },
+                { label: "Suka menggambar bebas, mencorat-cret kreatif, atau menciptakan bentuk baru di luar contoh", cat: "Ideation" },
+                { label: "Betah berlama-lama merakit mainan yang rumit (seperti puzzle) sampai benar-benar selesai", cat: "Achiever" },
+                { label: "Suka mengotak-atik mainan rusak untuk mencari tahu bagaimana cara merakitnya kembali", cat: "Restorative" },
+                { label: "Sering membuat aturan mainan baru sendiri ketika merasa bosan dengan aturan yang lama", cat: "Strategic" },
+                { label: "Suka mengumpulkan benda-benda unik (seperti batu kerikil, stiker, daun kering) dan menjaganya", cat: "Learner" }
+            ]},
+            { name: "Rutinitas & Kemandirian Tugas", color: "rose", activities: [
+                { label: "Rajin merapikan tempat tidur atau meja belajarnya sendiri tanpa harus diperintah", cat: "Discipline" },
+                { label: "Sangat peduli merawat tanaman rumah atau teratur memberi makan hewan petiharaan harian", cat: "Responsibility" },
+                { label: "Senang membantu menimbang bahan makanan dapur, mencuci piring, atau menata meja makan", cat: "Arranger" },
+                { label: "Terlihat gelisah atau tidak tenang jika ada pekerjaan sekolah/rumah yang belum diselesaikan", cat: "Achiever" },
+                { label: "Sangat mandiri memilih pakaian hariannya sendiri dan terlihat sangat yakin dengan seleranya", cat: "Command" },
+                { label: "Suka membuat catatan/jadwal main harian atau menempelkan daftar rencana belajarnya sendiri", cat: "Discipline" }
+            ]},
+            { name: "Sikap Sosial & Kepedulian Rumah", color: "emerald", activities: [
+                { label: "Peka mendatangi dan menghibur anggota keluarga atau teman yang tampak lelah atau sedih", cat: "Empathy" },
+                { label: "Secara sukarela menawarkan makanan atau membagi mainannya kepada saudara atau teman bermain", cat: "Positivity" },
+                { label: "Lebih senang mengobrol mendalam dengan satu teman akrab dibandingkan bermain di keramaian", cat: "Relator" },
+                { label: "Suka menjadi penengah dan meredakan ketegangan saat saudara atau temannya berselisih", cat: "Strategic" },
+                { label: "Sangat berani menyapa tetangga atau menyapa anak lain yang belum dikenal di area bermain", cat: "Woo" },
+                { label: "Mudah menyadari perubahan kecil di rumah (misal: posisi pajangan baru atau aroma masakan Ibu)", cat: "Analytical" }
+            ]},
+            { name: "Komunikasi & Kepemimpinan Alami", color: "amber", activities: [
+                { label: "Suka menceritakan kembali kejadian hariannya secara detail, panjang lebar, dan penuh ekspresi", cat: "Communication" },
+                { label: "Suka membagi tugas atau memberikan instruksi khusus kepada teman/saudara saat bermain peran", cat: "Command" },
+                { label: "Sangat kompetitif saat bermain game keluarga (seperti monopoli/ular tangga) dan bertekad ingin menang", cat: "Competition" },
+                { label: "Langsung mencoba mengoperasikan alat/gadget baru tanpa mau membaca petunjuk penggunaannya dulu", cat: "Activator" },
+                { label: "Suka meniru cara bicara guru, tokoh kartun favorit, atau orang dewasa di sekitarnya secara menarik", cat: "Communication" },
+                { label: "Selalu berulang kali bertanya 'Kenapa ya?' terhadap kejadian-kejadian sepele di sekeliling rumah", cat: "Analytical" }
+            ]}
+        ];
+
+        // Memuat data lama jika ada
+        window.addEventListener('DOMContentLoaded', () => {
+            const savedName = localStorage.getItem('ts_child_name');
+            const savedClass = localStorage.getItem('ts_child_class');
+            if (savedName) document.getElementById('childNameInput').value = savedName;
+            if (savedClass) document.getElementById('childClassInput').value = savedClass;
+        });
+
+        // Sistem Toast Estetik
+        function showToast(message, isSuccess = false) {
+            const toast = document.getElementById('toastNotification');
+            const msgEl = document.getElementById('toastMessage');
+            const iconEl = document.getElementById('toastIcon');
+            
+            msgEl.innerText = message;
+            
+            if (isSuccess) {
+                toast.classList.remove('bg-slate-900');
+                toast.classList.add('bg-emerald-600');
+                iconEl.className = "fa-solid fa-circle-check text-white text-base";
+            } else {
+                toast.classList.remove('bg-emerald-600');
+                toast.classList.add('bg-slate-900');
+                iconEl.className = "fa-solid fa-circle-exclamation text-amber-400 text-base";
+            }
+            
+            toast.classList.remove('opacity-0', 'pointer-events-none', '-translate-y-4');
+            toast.classList.add('opacity-100', 'translate-y-0');
+            
+            setTimeout(() => {
+                toast.classList.remove('opacity-100', 'translate-y-0');
+                toast.classList.add('opacity-0', 'pointer-events-none', '-translate-y-4');
+            }, 3500);
+        }
+
+        function startApp() {
+            const nameInput = document.getElementById('childNameInput');
+            const classInput = document.getElementById('childClassInput');
+            const welcomeContainer = document.getElementById('welcomeContainer');
+            
+            let hasError = false;
+
+            // Validasi Input Nama
+            if (!nameInput.value.trim()) {
+                nameInput.classList.add('border-red-500', 'ring-4', 'ring-red-50');
+                hasError = true;
+            } else {
+                nameInput.classList.remove('border-red-500', 'ring-4', 'ring-red-50');
+            }
+
+            // Validasi Pilihan Kelas
+            if (!classInput.value) {
+                classInput.classList.add('border-red-500', 'ring-4', 'ring-red-50');
+                hasError = true;
+            } else {
+                classInput.classList.remove('border-red-500', 'ring-4', 'ring-red-50');
+            }
+
+            if (hasError) {
+                welcomeContainer.classList.add('shake');
+                showToast("Harap masukkan Nama Anak dan pilih Kelas terlebih dahulu!");
+                setTimeout(() => welcomeContainer.classList.remove('shake'), 400);
+                return;
+            }
+
+            childName = nameInput.value.trim();
+            childClass = classInput.value;
+            
+            // Simpan ke local storage
+            localStorage.setItem('ts_child_name', childName);
+            localStorage.setItem('ts_child_class', childClass);
+
+            // Update UI elements
+            document.getElementById('displayChildName').innerText = childName;
+            document.getElementById('displayChildClass').innerText = "Kelas " + childClass;
+            document.getElementById('headerChildName').innerText = childName;
+            document.getElementById('reportChildName').innerText = childName;
+            document.getElementById('reportChildClass').innerText = "Kelas " + childClass;
+
+            document.getElementById('welcome').classList.add('hidden');
+            document.getElementById('mainHeader').classList.remove('hidden');
+            document.getElementById('mainContent').classList.remove('hidden');
+            document.getElementById('bottomNav').classList.remove('hidden');
+            renderChecklist();
+        }
+
+        function renderChecklist() {
+            const container = document.getElementById('checklist-groups');
+            container.innerHTML = activityGroups.map((group, groupIdx) => `
+                <div>
+                    <div class="flex items-center gap-2 mb-4 px-2">
+                        <span class="w-1.5 h-4 bg-indigo-500 rounded-full"></span>
+                        <h3 class="text-xs font-extrabold text-slate-500 uppercase tracking-widest">${group.name}</h3>
+                    </div>
+                    <div class="space-y-3">
+                        ${group.activities.map((act, actIdx) => `
+                            <label class="check-card bg-white p-5 rounded-[1.8rem] flex items-center gap-4 cursor-pointer">
+                                <input type="checkbox" onchange="updateActivityByIndex(${groupIdx}, ${actIdx}, this)" class="sr-only">
+                                <div class="custom-check w-6 h-6 rounded-lg border-2 border-slate-200 flex items-center justify-center transition-all duration-300 shrink-0">
+                                    <i class="fa-solid fa-check text-white text-[10px] opacity-0 transition-all duration-300 transform scale-50"></i>
+                                </div>
+                                <p class="text-xs font-semibold text-slate-700 leading-relaxed">${act.label}</p>
+                            </label>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function updateActivityByIndex(groupIdx, actIdx, checkbox) {
+            const act = activityGroups[groupIdx].activities[actIdx];
+            const label = act.label;
+            const cat = act.cat;
+
+            if (checkbox.checked) {
+                if (talents[cat]) talents[cat].score += 30;
+                checkedActivities.push(label);
+            } else {
+                if (talents[cat]) talents[cat].score -= 30;
+                checkedActivities = checkedActivities.filter(item => item !== label);
+            }
+        }
+
+        async function saveAndShowReport() {
+            document.getElementById('dbLoader').classList.remove('hidden');
+
+            const top7 = Object.entries(talents)
+                .sort((a,b) => b[1].score - a[1].score)
+                .slice(0, 7)
+                .map(t => t[0])
+                .join(', ');
+
+            const payload = {
+                timestamp: new Date().toLocaleString('id-ID'),
+                nama: childName,
+                kelas: childClass,
+                aktivitas: checkedActivities.join(', '),
+                top_bakat: top7
+            };
+
+            try {
+                await fetch(GOOGLE_SCRIPT_URL, {
+                    method: 'POST',
+                    mode: 'no-cors',
+                    cache: 'no-cache',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                });
+            } catch (e) {
+                console.warn("Database tidak merespon, namun data lokal tetap diproses.");
+            } finally {
+                setTimeout(() => {
+                    document.getElementById('dbLoader').classList.add('hidden');
+                    showSection('report');
+                }, 1200);
+            }
+        }
+
+        function showSection(id) {
+            ['checklist', 'report'].forEach(s => document.getElementById(s).classList.add('hidden'));
+            document.getElementById(id).classList.remove('hidden');
+
+            document.querySelectorAll('.nav-button').forEach(btn => {
+                btn.classList.remove('active', 'text-slate-300');
+                if(!btn.classList.contains('active')) btn.classList.add('text-slate-300');
+            });
+            document.getElementById('nav-'+id).classList.add('active');
+            document.getElementById('nav-'+id).classList.remove('text-slate-300');
+
+            if(id === 'report') renderReport();
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // Fitur menyalin ke papan klip dengan fallbacks untuk kompatibilitas iframe
+        function copyTextToClipboard(text) {
+            const textArea = document.createElement("textarea");
+            textArea.value = text;
+            textArea.style.position = "fixed";  // Hindari pengguliran halaman ke bawah
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            try {
+                document.execCommand('copy');
+                showToast("Rangkuman berhasil disalin! Silakan paste di chat WhatsApp Guru.", true);
+            } catch (err) {
+                showToast("Gagal menyalin otomatis. Silakan cetak PDF laporan.");
+            }
+            document.body.removeChild(textArea);
+        }
+
+        function shareResultToWhatsApp() {
+            const sorted = Object.entries(talents)
+                .sort((a,b) => b[1].score - a[1].score)
+                .slice(0, 3); // Ambil Top 3 Dominan
+
+            let textSummary = `*HASIL OBSERVASI BAKAT ANAK (TALENTSCOUT KIDS)*\n\n`;
+            textSummary += `Nama Anak: *${childName}*\n`;
+            textSummary += `Kelas: *${childClass}*\n`;
+            textSummary += `Waktu Observasi: ${new Date().toLocaleDateString('id-ID')}\n\n`;
+            textSummary += `*Top 3 Bakat Alami Dominan:*\n`;
+            
+            sorted.forEach((t, i) => {
+                textSummary += `${i+1}. *${t[0].toUpperCase()}*\n   _${t[1].desc}_\n\n`;
+            });
+
+            textSummary += `_Dikirim otomatis oleh orang tua melalui Aplikasi TalentScout Kids._`;
+
+            copyTextToClipboard(textSummary);
+        }
+
+        function resetAndBackToHome() {
+            checkedActivities = [];
+            Object.keys(talents).forEach(key => talents[key].score = 10);
+            
+            document.getElementById('welcome').classList.remove('hidden');
+            document.getElementById('mainHeader').classList.add('hidden');
+            document.getElementById('mainContent').classList.add('hidden');
+            document.getElementById('bottomNav').classList.add('hidden');
+            
+            // Fokus kembali ke input
+            document.getElementById('childNameInput').value = "";
+            document.getElementById('childClassInput').selectedIndex = 0;
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        let chartInstance = null;
+        function renderReport() {
+            try {
+                const sorted = Object.entries(talents).sort((a,b) => b[1].score - a[1].score).slice(0, 7);
+                const ctx = document.getElementById('talentChart').getContext('2d');
+                
+                if(chartInstance) chartInstance.destroy();
+
+                chartInstance = new Chart(ctx, {
+                    type: 'radar',
+                    data: {
+                        labels: sorted.map(t => t[0]),
+                        datasets: [{
+                            data: sorted.map(t => t[1].score),
+                            backgroundColor: 'rgba(99, 102, 241, 0.1)',
+                            borderColor: '#6366f1',
+                            borderWidth: 2,
+                            pointBackgroundColor: '#6366f1'
+                        }]
+                    },
+                    options: { 
+                        plugins: { legend: { display: false } }, 
+                        scales: { 
+                            r: { 
+                                ticks: { display: false },
+                                grid: { color: 'rgba(0,0,0,0.03)' },
+                                pointLabels: { font: { size: 9, weight: '700' }, color: '#64748b' }
+                            } 
+                        } 
+                    }
+                });
+
+                document.getElementById('top-talents-display').innerHTML = sorted.map((t, i) => `
+                    <div class="talent-card p-6 rounded-[2.5rem] animate-pop-in" style="animation-delay: ${i*100}ms">
+                        <div class="flex items-center gap-4 mb-3">
+                            <div class="w-10 h-10 rounded-xl flex items-center justify-center text-white shrink-0 shadow-md" style="background: ${t[1].color}">
+                                <i class="fa-solid ${t[1].icon}"></i>
+                            </div>
+                            <h4 class="font-bold text-slate-800 uppercase text-xs tracking-wider">${t[0]}</h4>
+                        </div>
+                        <p class="text-[11px] text-slate-500 font-medium leading-relaxed">${t[1].desc.replace("Ia", childName)}</p>
+                        <div class="mt-4 pt-4 border-t border-slate-50">
+                            <p class="text-[9px] font-black text-indigo-400 uppercase tracking-widest mb-1">Stimulasi</p>
+                            <p class="text-[10px] text-slate-700 font-bold">${t[1].advice}</p>
+                        </div>
+                    </div>
+                `).join('');
+            } catch (error) {
+                console.error("Gagal merender grafik/laporan: ", error);
+            }
+        }
+    </script>
+</body>
+</html>
